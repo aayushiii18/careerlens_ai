@@ -16,14 +16,18 @@ try:
 except ImportError:
     PDF_SUPPORT = False
 
-try:
-    import anthropic
-    client = anthropic.Anthropic()
-    AI_SUPPORT = True
-except Exception:
-    client = None
-    AI_SUPPORT = False
+import os
+import google.generativeai as genai
 
+try:
+    GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+    if GEMINI_KEY:
+        genai.configure(api_key=GEMINI_KEY)
+        AI_SUPPORT = True
+    else:
+        AI_SUPPORT = False
+except Exception:
+    AI_SUPPORT = False
 # ═══════════════════════════════════════════════════
 # PAGE CONFIG
 # ═══════════════════════════════════════════════════
@@ -317,14 +321,11 @@ def compute_gap(user_skills: list, role: str) -> dict:
 
 def call_ai(prompt: str, tokens: int = 1400) -> str:
     if not AI_SUPPORT:
-        return "⚠️ AI unavailable — set ANTHROPIC_API_KEY environment variable."
+        return "⚠️ AI unavailable — set GEMINI_API_KEY environment variable."
     try:
-        r = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=tokens,
-            messages=[{"role":"user","content":prompt}]
-        )
-        return r.content[0].text.strip()
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
         return f"⚠️ Error: {e}"
 

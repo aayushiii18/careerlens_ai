@@ -1,5 +1,5 @@
 """
-CareerLens AI v2.0 - Gemini Powered (Free)
+CareerLens AI v2.0 - Powered by Google Gemini (New SDK - google.genai)
 """
 
 import streamlit as st
@@ -14,20 +14,20 @@ try:
 except ImportError:
     PDF_SUPPORT = False
 
-# ── Gemini AI (Free) ────────────────────────────────
+# ── Gemini AI (New SDK) ─────────────────────────────
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     if GEMINI_KEY:
-        genai.configure(api_key=GEMINI_KEY)
-        AI_MODEL = genai.GenerativeModel("gemini-2.0-flash")
+        AI_CLIENT  = genai.Client(api_key=GEMINI_KEY)
         AI_SUPPORT = True
     else:
+        AI_CLIENT  = None
         AI_SUPPORT = False
-        AI_MODEL = None
 except Exception:
+    AI_CLIENT  = None
     AI_SUPPORT = False
-    AI_MODEL = None
 
 # ═══════════════════════════════════════════════════
 # PAGE CONFIG
@@ -44,7 +44,7 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 :root {
     --bg:#07090F; --surface:#0F1219; --surface2:#151923; --border:#1E2433;
-    --indigo:#6366F1; --violet:#8B5CF6; --cyan:#06B6D4;
+    --indigo:#6366F1; --violet:#8B5CF6;
     --emerald:#10B981; --amber:#F59E0B; --rose:#F43F5E;
     --text:#E8EDF5; --muted:#7B8599; --radius:14px;
 }
@@ -158,13 +158,25 @@ def compute_gap(user_skills: list, role: str) -> dict:
     return {"required":req,"matched":matched,"missing":missing,"percentage":pct,"recs":recs}
 
 # ═══════════════════════════════════════════════════
-# CORE AI FUNCTION — GEMINI
+# CORE AI FUNCTION — NEW google.genai SDK
 # ═══════════════════════════════════════════════════
+def get_ai_client():
+    """Get AI client from session state or environment."""
+    if "ai_client" in st.session_state:
+        return st.session_state["ai_client"], True
+    if AI_CLIENT:
+        return AI_CLIENT, True
+    return None, False
+
 def call_ai(prompt: str) -> str:
-    if not AI_SUPPORT:
-        return "⚠️ AI unavailable — please set your GEMINI_API_KEY (see sidebar)."
+    ai_client, available = get_ai_client()
+    if not available or ai_client is None:
+        return "⚠️ Please enter your Gemini API key in the sidebar first."
     try:
-        response = AI_MODEL.generate_content(prompt)
+        response = ai_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+        )
         return response.text.strip()
     except Exception as e:
         return f"⚠️ Error: {e}"
@@ -208,18 +220,15 @@ Role: {p.get('role')} | Skills: {', '.join(p.get('skills',[]))}
 Projects: {p.get('projects','')}
 Difficulty: {difficulty}
 {f'Focus area: {extra}' if extra else ''}
-
 Format each as:
 Q[N]: [Question]
 A[N]: [Detailed answer using STAR method where applicable]
-
-Mix: 3 technical, 3 behavioral, 2 project-based, 2 HR/culture fit.
-Make answers specific to their actual profile, not generic.""")
+Mix: 3 technical, 3 behavioral, 2 project-based, 2 HR/culture fit.""")
 
 def gen_linkedin(p, tone="Professional & Formal"):
     return call_ai(f"""Write a complete LinkedIn profile. Tone: {tone}
 1. HEADLINE (under 220 chars, keyword-rich)
-2. ABOUT SECTION (first-person, storytelling: hook, background, skills, project highlight, what you seek)
+2. ABOUT SECTION (first-person, storytelling: hook, background, skills, project highlight, goal)
 3. EXPERIENCE BULLETS (3 bullets per project, action verb + metric format)
 4. TOP 10 SKILLS TO ADD
 5. BANNER TAGLINE (one punchy sentence)
@@ -229,7 +238,6 @@ def gen_jd_match(p, jd_text: str):
     return call_ai(f"""Analyze this job description against the candidate profile.
 JOB DESCRIPTION:\n{jd_text}
 CANDIDATE PROFILE:\n{ctx(p)}
-
 Provide:
 MATCH SCORE: [X/100]
 STRONG MATCHES: (skills that directly align)
@@ -239,19 +247,17 @@ TAILORED SUMMARY: (rewrite resume summary to match this JD)
 INTERVIEW PREP: (top 3 likely questions from this JD)""")
 
 def gen_roadmap(p, hours=2):
-    gap = compute_gap(p.get('skills',[]), p.get('role','Software Engineer'))
+    gap     = compute_gap(p.get('skills',[]), p.get('role','Software Engineer'))
     missing = gap['missing']
     return call_ai(f"""Create a detailed 12-week learning roadmap.
 Target Role: {p.get('role')}
 Current Skills: {', '.join(p.get('skills',[]))}
 Skills to Learn: {', '.join(missing) if missing else 'Advanced topics in current stack'}
 Daily study hours: {hours}
-
 Format as:
 WEEK 1-2: [Topic] - [Daily tasks, resources, mini project]
 WEEK 3-4: [Topic] - [Daily tasks, resources, mini project]
 ...continue for 12 weeks
-
 End with:
 MILESTONE PROJECTS: 3 portfolio projects to build
 CERTIFICATION PATH: recommended certs in order
@@ -266,7 +272,6 @@ Projects: {p.get('projects','')}
 Certifications: {p.get('certifications','')}"""
     return call_ai(f"""You are an ATS expert. Score this resume for: {p.get('role')}
 RESUME:\n{content}
-
 OVERALL ATS SCORE: [X/100]
 SECTION SCORES:
 - Keywords Match: [X/25]
@@ -285,7 +290,7 @@ OPTIMIZED HEADLINE: (rewrite for ATS)""")
 def hero():
     st.markdown("""
     <div class="hero">
-      <div class="hero-badge">🔭 v2.0 · Gemini Powered · 100% Free</div>
+      <div class="hero-badge">🔭 v2.0 · Gemini 2.0 Flash · 100% Free</div>
       <h1 class="hero-title">Career<span class="accent">Lens</span> AI</h1>
       <p class="hero-sub">AI-Powered Resume, Portfolio & Skill Gap Analyzer — built for students ready to stand out.</p>
     </div>""", unsafe_allow_html=True)
@@ -349,41 +354,56 @@ with st.sidebar:
     st.markdown("""
     <div style="padding:16px 8px 8px">
       <div style="font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:#E8EDF5">🔭 CareerLens AI</div>
-      <div style="font-size:0.7rem;color:#7B8599;margin-top:2px">v2.0 · Powered by Gemini (Free)</div>
+      <div style="font-size:0.7rem;color:#7B8599;margin-top:2px">v2.0 · Gemini 2.0 Flash · Free</div>
     </div><hr style="border-color:#1E2433;margin:10px 0 14px">
     """, unsafe_allow_html=True)
 
-    # API key input in sidebar
-    if not AI_SUPPORT:
-        st.error("⚠️ No API key found")
-        with st.expander("🔑 Enter Gemini API Key"):
-            user_key = st.text_input("Paste your Gemini API key",
-                                      type="password",
-                                      placeholder="AIzaSy...",
-                                      help="Get free key at aistudio.google.com")
-            if st.button("✅ Activate"):
-                if user_key.strip():
-                    try:
-                        import google.generativeai as genai
-                        genai.configure(api_key=user_key.strip())
-                        st.session_state["ai_model"] = genai.GenerativeModel("gemini-2.0-flash")
-                        st.session_state["ai_key"]   = user_key.strip()
-                        st.success("✅ Key activated!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Invalid key: {e}")
-                else:
-                    st.error("Please paste a key first.")
-        st.caption("Get free key → [aistudio.google.com](https://aistudio.google.com)")
+    # Always show API key box
+    st.markdown("#### 🔑 Gemini API Key")
+    saved_key  = st.session_state.get("ai_key", "")
+    user_key   = st.text_input(
+        "Enter your key",
+        value=saved_key,
+        type="password",
+        placeholder="AIzaSy...",
+        help="Get free key at aistudio.google.com/apikey"
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Activate"):
+            if user_key.strip():
+                try:
+                    from google import genai as g
+                    test_client = g.Client(api_key=user_key.strip())
+                    # quick test
+                    test_client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents="Say OK"
+                    )
+                    st.session_state["ai_client"] = test_client
+                    st.session_state["ai_key"]    = user_key.strip()
+                    st.success("✅ Connected!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ {e}")
+            else:
+                st.error("Paste your key first.")
+    with col2:
+        if st.button("🔄 Clear"):
+            st.session_state.pop("ai_client", None)
+            st.session_state.pop("ai_key", None)
+            st.rerun()
+
+    # Status indicator
+    _, active = get_ai_client()
+    if active:
+        st.success("✅ AI Active")
     else:
-        st.success("✅ Gemini AI active (Free)")
+        st.warning("⚠️ Key needed")
+        st.caption("Get free key → [aistudio.google.com/apikey](https://aistudio.google.com/apikey)")
 
-    # Override AI_MODEL from session if set via sidebar
-    if "ai_model" in st.session_state:
-        AI_MODEL   = st.session_state["ai_model"]
-        AI_SUPPORT = True
-
-    st.markdown("<hr style='border-color:#1E2433;margin:10px 0 14px'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#1E2433;margin:14px 0'>", unsafe_allow_html=True)
 
     page = st.radio("nav", [
         "🏠  Home",
@@ -400,43 +420,9 @@ with st.sidebar:
 
     st.markdown("""<hr style="border-color:#1E2433;margin:14px 0 10px">
     <div style="font-size:0.72rem;color:#7B8599;padding:0 8px">
-    Streamlit + Gemini 1.5 Flash<br>Free · No credit card needed
+    Streamlit + Gemini 2.0 Flash<br>Free · No credit card needed
     </div>""", unsafe_allow_html=True)
 
-# Re-check AI support after sidebar key entry
-if "ai_model" in st.session_state:
-    AI_MODEL   = st.session_state["ai_model"]
-    AI_SUPPORT = True
-
-def call_ai(prompt: str) -> str:
-    st.markdown("#### 🔑 Gemini API Key")
-    saved_key = st.session_state.get("ai_key", "")
-    user_key = st.text_input(
-        "Enter your key",
-        value=saved_key,
-        type="password",
-        placeholder="AIzaSy...",
-    )
-    if st.button("✅ Activate Key"):
-        if user_key.strip():
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=user_key.strip())
-                model = genai.GenerativeModel("gemini-2.0-flash")
-                # test the key
-                model.generate_content("hi")
-                st.session_state["ai_model"] = model
-                st.session_state["ai_key"]   = user_key.strip()
-                st.success("✅ Key working!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Key failed: {e}")
-        else:
-            st.error("Please paste a key first.")
-    if st.button("🔄 Clear Key"):
-        st.session_state.pop("ai_model", None)
-        st.session_state.pop("ai_key", None)
-        st.rerun()
 # ═══════════════════════════════════════════════════
 # PAGE: HOME
 # ═══════════════════════════════════════════════════
@@ -458,8 +444,8 @@ if page == "🏠  Home":
     st.markdown("---")
     st.markdown("### ⚡ Quick Start")
     ca,cb = st.columns(2)
-    with ca: card("1️⃣","Set API Key","Paste your free Gemini key in the sidebar panel above.")
-    with cb: card("2️⃣","Input Profile → Use any feature","Fill your details once, use all 9 tools.")
+    with ca: card("1️⃣","Enter API Key","Paste your free Gemini key in the sidebar → click Activate.")
+    with cb: card("2️⃣","Input Profile → Use any feature","Fill your details once, use all 9 AI tools.")
 
 # ═══════════════════════════════════════════════════
 # PAGE: INPUT PROFILE
@@ -501,7 +487,7 @@ elif page == "📋  Input Profile":
                             "skills_raw":sk,"projects":pr,"certifications":ce,
                             "role":ro,"company":co,"resume_text":raw
                         }
-                        st.success("✅ Profile saved! Use any tool from the sidebar.")
+                        st.success("✅ Profile saved!")
                 else:
                     st.error("Could not extract text — try manual input.")
     else:

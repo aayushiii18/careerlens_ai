@@ -1,4 +1,3 @@
-irements · TXT
 streamlit
 PyPDF2
 pandas

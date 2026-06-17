@@ -1,4 +1,6 @@
+irements · TXT
 streamlit
 PyPDF2
 pandas
-google-generativeai
+groq
+ 

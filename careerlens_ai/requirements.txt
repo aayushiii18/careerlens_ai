@@ -3,7 +3,3 @@ streamlit
 PyPDF2
 pandas
 groq
-<<<<<<< HEAD
- 
-=======
->>>>>>> f937f7034be60dbdd2a972b928c458321463c207
